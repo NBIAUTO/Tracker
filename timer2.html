@@ -1,0 +1,863 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Project Countdown Widget+</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        html, body {
+            height: 100%;
+            margin: 0;
+            font-family: 'Inter', sans-serif;
+        }
+        body {
+             background: linear-gradient(to bottom right, #e0f2fe, #c7d2fe); /* sky-100 to indigo-200 */
+        }
+        /* Custom scrollbar */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 10px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #a3a3a3; /* neutral-400 */
+            border-radius: 10px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #737373; /* neutral-500 */
+        }
+        /* Task item styling */
+        .task-item.completed .task-name,
+        .task-item.completed .task-due-date,
+        .task-item.completed .countdown-text {
+            text-decoration: line-through;
+            opacity: 0.6;
+        }
+        /* Progress bar styling */
+        .progress-bar-bg {
+            background-color: #e5e7eb; /* gray-200 */
+            border-radius: 9999px;
+            overflow: hidden;
+            height: 8px; /* Small height for individual */
+        }
+        .progress-bar-fill {
+            background-color: #3b82f6; /* blue-500 */
+            height: 100%;
+            transition: width 0.3s ease-in-out;
+            border-radius: 9999px;
+        }
+         .global-progress-bar-bg {
+            background-color: #e5e7eb; /* gray-200 */
+            border-radius: 9999px;
+            overflow: hidden;
+            height: 12px; /* Slightly thicker global bar */
+        }
+        .global-progress-bar-fill {
+            /* Using a different color to distinguish average vs completion */
+            background-color: #2563eb; /* blue-600 */
+            height: 100%;
+            transition: width 0.3s ease-in-out;
+            border-radius: 9999px;
+            text-align: center;
+            color: white;
+            font-size: 0.7rem;
+            line-height: 12px; /* Match height */
+        }
+
+        /* Priority Badges */
+        .priority-badge {
+            font-size: 0.7rem;
+            padding: 1px 6px;
+            border-radius: 9999px;
+            font-weight: 500;
+            margin-left: 8px;
+            white-space: nowrap;
+        }
+        .priority-High { background-color: #fee2e2; color: #b91c1c; } /* red-100 / red-700 */
+        .priority-Medium { background-color: #fef3c7; color: #b45309; } /* amber-100 / amber-700 */
+        .priority-Low { background-color: #dcfce7; color: #15803d; } /* green-100 / green-700 */
+
+        /* Notes Log */
+        .notes-log {
+            font-size: 0.8rem;
+            max-height: 80px; /* Limit height */
+            overflow-y: auto;
+            background-color: #f9fafb; /* gray-50 */
+            border: 1px solid #e5e7eb; /* gray-200 */
+            border-radius: 4px;
+            padding: 4px 6px;
+            margin-top: 4px;
+        }
+        .notes-log p { margin-bottom: 2px; }
+        .notes-log .note-timestamp { color: #6b7280; /* gray-500 */ font-size: 0.7rem; margin-right: 5px;}
+
+        /* Modal Styling */
+        .modal {
+            display: none; /* Hidden by default */
+            position: fixed;
+            z-index: 50;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.5); /* Dim background */
+            animation: fadeIn 0.3s ease-out;
+        }
+        .modal-content {
+            background-color: #fefefe;
+            margin: 10% auto;
+            padding: 20px;
+            border: 1px solid #888;
+            width: 80%;
+            max-width: 500px;
+            border-radius: 8px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+            animation: slideIn 0.3s ease-out;
+        }
+        .modal-close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            line-height: 1;
+        }
+        .modal-close:hover,
+        .modal-close:focus {
+            color: black;
+            text-decoration: none;
+            cursor: pointer;
+        }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes slideIn { from { transform: translateY(-30px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+        /* Basic transition for hover effects */
+        button, input, select, textarea {
+            transition: all 0.2s ease-in-out;
+        }
+        /* Ensure sliders look consistent */
+        input[type=range] {
+             cursor: pointer;
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center p-4 min-h-screen">
+
+    <div class="bg-white/80 backdrop-blur-lg rounded-xl shadow-2xl p-6 w-full max-w-2xl max-h-[95vh] flex flex-col">
+        <h1 class="text-2xl font-bold text-center text-gray-800 mb-4">Project Deadlines+</h1>
+
+        <div id="globalProgressContainer" class="mb-4">
+            <div class="flex justify-between text-xs text-gray-600 mb-1">
+                <span>Overall Average Progress</span> <span id="globalProgressText">0%</span>
+            </div>
+            <div class="global-progress-bar-bg w-full">
+                <div id="globalProgressBar" class="global-progress-bar-fill" style="width: 0%;"></div>
+            </div>
+        </div>
+
+        <form id="taskForm" class="mb-4 border-b pb-4">
+             <input type="hidden" id="editingTaskId" value=""> <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-3">
+                <div>
+                    <label for="taskName" class="block text-sm font-medium text-gray-700 mb-1">Task Name</label>
+                    <input type="text" id="taskName" name="taskName" required maxlength="100" class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" placeholder="e.g., Appeal Brief Due">
+                </div>
+                <div>
+                    <label for="taskDue" class="block text-sm font-medium text-gray-700 mb-1">Due Date & Time</label>
+                    <input type="datetime-local" id="taskDue" name="taskDue" required class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                </div>
+                 <div>
+                    <label for="taskPriority" class="block text-sm font-medium text-gray-700 mb-1">Priority</label>
+                    <select id="taskPriority" name="taskPriority" class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white">
+                        <option value="Medium">Medium</option>
+                        <option value="High">High</option>
+                        <option value="Low">Low</option>
+                    </select>
+                </div>
+            </div>
+             <div class="flex gap-2">
+                 <button type="submit" id="addTaskButton" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-md shadow-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50">
+                    Add Task
+                </button>
+                 <button type="submit" id="saveChangesButton" class="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-md shadow-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 hidden">
+                    Save Changes
+                </button>
+                 <button type="button" id="cancelEditButton" class="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-md shadow-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-400 hidden">
+                    Cancel
+                </button>
+            </div>
+            <p id="taskLimitMessage" class="text-red-500 text-sm mt-2 text-center hidden">Maximum 15 tasks reached.</p>
+        </form>
+
+        <div class="flex flex-wrap gap-2 items-center mb-3 text-sm">
+            <label for="sortBy" class="font-medium text-gray-700">Sort by:</label>
+            <select id="sortBy" class="px-2 py-1 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white text-xs">
+                <option value="dueDate">Due Date</option>
+                <option value="priority">Priority</option>
+                <option value="name">Name</option>
+                <option value="dateAdded">Date Added</option>
+                <option value="progressPercent">Progress</option>
+            </select>
+            <select id="sortOrder" class="px-2 py-1 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white text-xs">
+                <option value="asc">Ascending</option>
+                <option value="desc">Descending</option>
+            </select>
+             <label for="filterPriority" class="font-medium text-gray-700 ml-auto">Filter Priority:</label>
+             <select id="filterPriority" class="px-2 py-1 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white text-xs">
+                <option value="All">All</option>
+                <option value="High">High</option>
+                <option value="Medium">Medium</option>
+                <option value="Low">Low</option>
+            </select>
+             <label for="filterStatus" class="font-medium text-gray-700">Status:</label>
+             <select id="filterStatus" class="px-2 py-1 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white text-xs">
+                <option value="All">All</option>
+                <option value="Active">Active</option>
+                <option value="Completed">Completed</option>
+            </select>
+        </div>
+
+        <div id="taskList" class="flex-grow overflow-y-auto space-y-3 pr-2 custom-scrollbar">
+            <p id="noTasksMessage" class="text-gray-500 text-center py-4">No tasks match filters or none added yet.</p>
+        </div>
+    </div>
+
+    <div id="notesModal" class="modal">
+        <div class="modal-content">
+            <span class="modal-close" id="modalCloseButton">&times;</span>
+            <h3 class="text-lg font-semibold mb-3" id="modalTaskName">Task Notes</h3>
+            <div id="modalNotesLog" class="notes-log mb-3 custom-scrollbar">
+                </div>
+            <textarea id="modalNoteInput" rows="3" class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 mb-3" placeholder="Add a new note..."></textarea>
+            <button id="modalAddNoteButton" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-md shadow-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                Add Note
+            </button>
+        </div>
+    </div>
+
+
+    <script>
+        // --- DOM Element References ---
+        const taskForm = document.getElementById('taskForm');
+        const taskNameInput = document.getElementById('taskName');
+        const taskDueInput = document.getElementById('taskDue');
+        const taskPriorityInput = document.getElementById('taskPriority');
+        const editingTaskIdInput = document.getElementById('editingTaskId'); // Hidden input
+        const addTaskButton = document.getElementById('addTaskButton');
+        const saveChangesButton = document.getElementById('saveChangesButton');
+        const cancelEditButton = document.getElementById('cancelEditButton');
+        const taskListDiv = document.getElementById('taskList');
+        const noTasksMessage = document.getElementById('noTasksMessage');
+        const taskLimitMessage = document.getElementById('taskLimitMessage');
+        // Global Progress
+        const globalProgressContainer = document.getElementById('globalProgressContainer');
+        const globalProgressBar = document.getElementById('globalProgressBar');
+        const globalProgressText = document.getElementById('globalProgressText');
+        // Sorting & Filtering
+        const sortBySelect = document.getElementById('sortBy');
+        const sortOrderSelect = document.getElementById('sortOrder');
+        const filterPrioritySelect = document.getElementById('filterPriority');
+        const filterStatusSelect = document.getElementById('filterStatus');
+        // Notes Modal
+        const notesModal = document.getElementById('notesModal');
+        const modalCloseButton = document.getElementById('modalCloseButton');
+        const modalTaskName = document.getElementById('modalTaskName');
+        const modalNotesLog = document.getElementById('modalNotesLog');
+        const modalNoteInput = document.getElementById('modalNoteInput');
+        const modalAddNoteButton = document.getElementById('modalAddNoteButton');
+
+        // --- State Variables ---
+        const MAX_TASKS = 15;
+        let tasks = []; // Array to hold task objects { id, name, dueDate, priority, notes: [{timestamp, text}], isCompleted, progressPercent, dateAdded }
+        let countdownInterval;
+        let currentSortBy = 'dueDate';
+        let currentSortOrder = 'asc';
+        let currentFilterPriority = 'All';
+        let currentFilterStatus = 'Active'; // Default to show active tasks
+        let currentNotesTaskId = null; // Track which task's notes are in the modal
+
+        // --- Utility Functions ---
+        function saveTasks() {
+            localStorage.setItem('countdownTasksEnhanced', JSON.stringify(tasks));
+            checkTaskLimit();
+            // No need to call updateGlobalProgress here, it's called by the actions that change progress/completion
+        }
+
+        function loadTasks() {
+            const storedTasks = localStorage.getItem('countdownTasksEnhanced');
+            try {
+                tasks = storedTasks ? JSON.parse(storedTasks).map(task => ({
+                    id: task.id || Date.now().toString() + Math.random(),
+                    name: task.name || 'Untitled Task',
+                    dueDate: task.dueDate || new Date().toISOString(),
+                    priority: task.priority || 'Medium',
+                    notes: task.notes || [],
+                    isCompleted: task.isCompleted || false,
+                    progressPercent: task.progressPercent || 0,
+                    dateAdded: task.dateAdded || new Date().toISOString()
+                 })) : [];
+            } catch (e) {
+                console.error("Error parsing tasks from localStorage:", e);
+                tasks = [];
+                localStorage.removeItem('countdownTasksEnhanced');
+            }
+            checkTaskLimit();
+            updateGlobalProgress(); // Initial calculation on load
+        }
+
+        function checkTaskLimit() {
+            const limitReached = tasks.length >= MAX_TASKS && !editingTaskIdInput.value;
+            addTaskButton.disabled = limitReached;
+            taskLimitMessage.classList.toggle('hidden', !limitReached);
+        }
+
+        function formatTimestamp(isoString) {
+            if (!isoString) return '';
+            const date = new Date(isoString);
+            const options = { year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: '2-digit' };
+            try {
+                return date.toLocaleString(undefined, options);
+            } catch (e) {
+                console.error("Error formatting timestamp:", e, isoString);
+                return 'Invalid Date';
+            }
+        }
+
+        // --- Countdown Logic ---
+        function formatTimeRemaining(dueDate, isCompleted) {
+             if (isCompleted) {
+                 return { text: "COMPLETED", class: '' };
+             }
+            const now = new Date();
+            const due = new Date(dueDate);
+            const diff = due - now;
+
+            if (diff <= 0) {
+                return { text: "OVERDUE", class: 'text-red-600 font-bold' };
+            }
+
+            const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+            const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+            const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+            const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+
+            let countdownClass = 'text-gray-700';
+            if (diff < 60 * 60 * 1000) {
+                 countdownClass = 'text-red-600 font-semibold';
+            } else if (diff < 24 * 60 * 60 * 1000) {
+                 countdownClass = 'text-orange-600';
+            }
+
+            return {
+                text: `${days}d ${hours}h ${minutes}m ${seconds}s`,
+                class: countdownClass
+            };
+        }
+
+         // --- Global Progress Logic ---
+        function updateGlobalProgress() {
+            const totalTasks = tasks.length;
+            if (totalTasks === 0) {
+                globalProgressBar.style.width = '0%';
+                globalProgressText.textContent = '0%';
+                globalProgressBar.textContent = '';
+                return;
+            }
+
+            // Calculate average progress based on individual sliders
+            // Treat completed tasks as 100% progress
+            const totalProgressSum = tasks.reduce((sum, task) => {
+                // Use 100 if completed, otherwise use the slider value (defaulting to 0 if undefined)
+                const progress = task.isCompleted ? 100 : (task.progressPercent || 0);
+                return sum + progress;
+            }, 0);
+
+            const averagePercentage = Math.round(totalProgressSum / totalTasks);
+
+            globalProgressBar.style.width = `${averagePercentage}%`;
+            globalProgressText.textContent = `${averagePercentage}%`;
+            globalProgressBar.textContent = `${averagePercentage}%`;
+            console.log(`Global progress updated: ${averagePercentage}%`); // Debug log
+        }
+
+
+        // --- Rendering Logic ---
+        function renderTasks() {
+            // 1. Filter Tasks
+            let filteredTasks = tasks.filter(task => {
+                const priorityMatch = currentFilterPriority === 'All' || task.priority === currentFilterPriority;
+                let statusMatch = true;
+                if (currentFilterStatus === 'Active') {
+                    statusMatch = !task.isCompleted;
+                } else if (currentFilterStatus === 'Completed') {
+                    statusMatch = task.isCompleted;
+                }
+                return priorityMatch && statusMatch;
+            });
+
+            // 2. Sort Tasks
+            filteredTasks.sort((a, b) => {
+                let compareA, compareB;
+                try {
+                    switch (currentSortBy) {
+                        case 'priority':
+                            const priorityOrder = { High: 1, Medium: 2, Low: 3 };
+                            compareA = priorityOrder[a.priority] || 99;
+                            compareB = priorityOrder[b.priority] || 99;
+                            break;
+                        case 'name':
+                            compareA = a.name ? a.name.toLowerCase() : '';
+                            compareB = b.name ? b.name.toLowerCase() : '';
+                            break;
+                        case 'dateAdded':
+                            compareA = a.dateAdded ? new Date(a.dateAdded) : new Date(0);
+                            compareB = b.dateAdded ? new Date(b.dateAdded) : new Date(0);
+                             if (isNaN(compareA)) compareA = new Date(0);
+                             if (isNaN(compareB)) compareB = new Date(0);
+                            break;
+                         case 'progressPercent':
+                            compareA = a.progressPercent || 0;
+                            compareB = b.progressPercent || 0;
+                            break;
+                        case 'dueDate':
+                        default:
+                            compareA = a.dueDate ? new Date(a.dueDate) : new Date(0);
+                            compareB = b.dueDate ? new Date(b.dueDate) : new Date(0);
+                             if (isNaN(compareA)) compareA = new Date(0);
+                             if (isNaN(compareB)) compareB = new Date(0);
+                            break;
+                    }
+
+                    if (compareA < compareB) return currentSortOrder === 'asc' ? -1 : 1;
+                    if (compareA > compareB) return currentSortOrder === 'asc' ? 1 : -1;
+                    return 0;
+                 } catch (e) {
+                     console.error("Error during sorting:", e, a, b);
+                     return 0;
+                 }
+            });
+
+            // 3. Render HTML
+            taskListDiv.innerHTML = '';
+            if (filteredTasks.length === 0) {
+                noTasksMessage.style.display = 'block';
+            } else {
+                noTasksMessage.style.display = 'none';
+                filteredTasks.forEach(task => {
+                    try {
+                        const taskElement = createTaskElement(task);
+                        taskListDiv.appendChild(taskElement);
+                    } catch (e) {
+                        console.error("Error creating task element for task:", task, e);
+                    }
+                });
+            }
+
+            updateGlobalProgress(); // Update progress after rendering potentially changed list
+            startCountdownUpdates();
+        }
+
+        function createTaskElement(task) {
+             // ... (createTaskElement function remains largely the same as previous version) ...
+             // It creates the HTML structure for a single task item, including:
+             // - Checkbox (.task-complete-toggle)
+             // - Name (.task-name) & Priority Badge (.task-priority)
+             // - Due Date (.task-due-date)
+             // - Action Buttons (Notes: .add-note-button, Edit: .edit-task-button, Delete: .delete-task-button)
+             // - Progress Slider (.task-progress-slider) & Value Display (.task-progress-value)
+             // - Countdown Text (.countdown-text)
+             // **Crucially, it attaches event listeners to the interactive elements within this specific task item.**
+
+             const taskElement = document.createElement('div');
+             taskElement.className = `task-item bg-white/70 p-4 rounded-lg shadow border border-gray-200 flex flex-col gap-2 ${task.isCompleted ? 'completed' : ''}`;
+             taskElement.dataset.taskId = task.id;
+
+             // Top Row: Checkbox, Name, Priority, Due Date, Actions
+             const topRow = document.createElement('div');
+             topRow.className = 'flex items-center gap-3';
+
+             const checkbox = document.createElement('input');
+             checkbox.type = 'checkbox';
+             checkbox.checked = task.isCompleted;
+             checkbox.className = 'task-complete-toggle h-5 w-5 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500 cursor-pointer flex-shrink-0';
+             checkbox.title = task.isCompleted ? 'Mark as Active' : 'Mark as Completed';
+             checkbox.addEventListener('change', handleCompleteToggle); // Attach listener
+
+             const namePriorityDiv = document.createElement('div');
+             namePriorityDiv.className = 'flex-grow flex items-center min-w-0';
+             const taskNameP = document.createElement('p');
+             taskNameP.className = 'task-name text-base font-medium text-gray-800 truncate mr-2';
+             taskNameP.textContent = task.name;
+             taskNameP.title = task.name;
+             const priorityBadge = document.createElement('span');
+             priorityBadge.className = `task-priority priority-badge priority-${task.priority}`;
+             priorityBadge.textContent = task.priority;
+             namePriorityDiv.appendChild(taskNameP);
+             namePriorityDiv.appendChild(priorityBadge);
+
+             const taskDueP = document.createElement('p');
+             taskDueP.className = 'task-due-date text-xs text-gray-500 whitespace-nowrap ml-2';
+             try {
+                const dueDateObj = new Date(task.dueDate);
+                taskDueP.textContent = `Due: ${dueDateObj.toLocaleDateString()} ${dueDateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+             } catch (e) { taskDueP.textContent = "Due: Invalid Date"; }
+
+
+             const actionButtonsDiv = document.createElement('div');
+             actionButtonsDiv.className = 'flex items-center gap-2 ml-auto flex-shrink-0';
+             const addNoteButton = document.createElement('button');
+             addNoteButton.innerHTML = '&#x1F4DD; Notes'; // Memo icon
+             addNoteButton.className = 'add-note-button text-xs text-blue-600 hover:text-blue-800 focus:outline-none p-1 hover:bg-blue-100 rounded';
+             addNoteButton.title = 'View/Add Notes';
+             addNoteButton.addEventListener('click', handleOpenNotesModal); // Attach listener
+             const editButton = document.createElement('button');
+             editButton.innerHTML = '&#x270E;'; // Pencil icon
+             editButton.className = 'edit-task-button text-blue-600 hover:text-blue-800 text-lg focus:outline-none p-1 hover:bg-blue-100 rounded';
+             editButton.title = 'Edit Task';
+             editButton.addEventListener('click', handleEditClick); // Attach listener
+             const deleteButton = document.createElement('button');
+             deleteButton.innerHTML = '&times;'; // Multiplication sign
+             deleteButton.className = 'delete-task-button text-red-500 hover:text-red-700 font-bold text-xl leading-none focus:outline-none p-1 hover:bg-red-100 rounded';
+             deleteButton.title = 'Delete Task';
+             deleteButton.addEventListener('click', handleDeleteClick); // Attach listener
+
+             actionButtonsDiv.appendChild(addNoteButton);
+             actionButtonsDiv.appendChild(editButton);
+             actionButtonsDiv.appendChild(deleteButton);
+
+             topRow.appendChild(checkbox);
+             topRow.appendChild(namePriorityDiv);
+             topRow.appendChild(taskDueP);
+             topRow.appendChild(actionButtonsDiv);
+
+             // Middle Row: Progress Slider
+             const progressRow = document.createElement('div');
+             progressRow.className = 'flex items-center gap-2 mt-1';
+             const progressLabel = document.createElement('label');
+             progressLabel.htmlFor = `progress-${task.id}`;
+             progressLabel.className = 'text-xs text-gray-600 w-16 text-right flex-shrink-0';
+             progressLabel.textContent = 'Progress:';
+             const progressSlider = document.createElement('input');
+             progressSlider.type = 'range';
+             progressSlider.min = '0';
+             progressSlider.max = '100';
+             progressSlider.value = task.progressPercent || 0;
+             progressSlider.id = `progress-${task.id}`;
+             progressSlider.className = 'task-progress-slider flex-grow h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700';
+             progressSlider.addEventListener('input', handleProgressChange); // Attach listener
+             const progressValue = document.createElement('span');
+             progressValue.className = 'task-progress-value text-xs font-medium text-gray-700 w-8 text-right flex-shrink-0';
+             progressValue.textContent = `${task.progressPercent || 0}%`;
+
+             progressRow.appendChild(progressLabel);
+             progressRow.appendChild(progressSlider);
+             progressRow.appendChild(progressValue);
+
+             // Bottom Row: Countdown Timer
+             const countdownP = document.createElement('p');
+             countdownP.className = 'countdown-text text-sm font-medium text-center mt-1';
+             countdownP.dataset.dueDate = task.dueDate;
+             countdownP.dataset.isCompleted = task.isCompleted;
+             const { text, class: countdownClass } = formatTimeRemaining(task.dueDate, task.isCompleted);
+             countdownP.textContent = text;
+             countdownP.className += ` ${countdownClass}`;
+
+
+             taskElement.appendChild(topRow);
+             taskElement.appendChild(progressRow);
+             taskElement.appendChild(countdownP);
+
+             return taskElement;
+        }
+
+        // --- Update Countdown Timers ---
+        function updateCountdowns() {
+            const countdownElements = taskListDiv.querySelectorAll('.countdown-text');
+            // Check if interval should be running
+            const activeTimersExistCheck = tasks.some(task => !task.isCompleted);
+
+            if (!activeTimersExistCheck && countdownInterval) {
+                 clearInterval(countdownInterval);
+                 countdownInterval = null;
+                 // Ensure final state is shown correctly even if interval stops
+                 countdownElements.forEach(el => {
+                     if (el.dataset.isCompleted === 'true' && el.textContent !== "COMPLETED") {
+                         el.textContent = "COMPLETED";
+                         const classesToRemove = ['text-red-600', 'text-orange-600', 'text-gray-700', 'font-bold', 'font-semibold'];
+                         el.classList.remove(...classesToRemove);
+                     }
+                 });
+                 return; // Stop update if no active timers
+            }
+            if (activeTimersExistCheck && !countdownInterval) {
+                 // Restart interval if it was stopped but shouldn't be
+                 startCountdownUpdates();
+            }
+
+
+            countdownElements.forEach(el => {
+                const dueDate = el.dataset.dueDate;
+                const isCompleted = el.dataset.isCompleted === 'true';
+
+                if (!isCompleted && dueDate) { // Only update active timers
+                    const { text, class: countdownClass } = formatTimeRemaining(dueDate, isCompleted);
+                     if (el.textContent !== text) {
+                          el.textContent = text;
+                     }
+                     const classesToRemove = ['text-red-600', 'text-orange-600', 'text-gray-700', 'font-bold', 'font-semibold'];
+                     el.classList.remove(...classesToRemove);
+                     if(countdownClass) el.classList.add(...countdownClass.split(' '));
+                } else if (isCompleted && el.textContent !== "COMPLETED") {
+                    el.textContent = "COMPLETED";
+                    const classesToRemove = ['text-red-600', 'text-orange-600', 'text-gray-700', 'font-bold', 'font-semibold'];
+                    el.classList.remove(...classesToRemove);
+                }
+            });
+        }
+
+        function startCountdownUpdates() {
+            if (countdownInterval) clearInterval(countdownInterval);
+            const activeTimersExist = tasks.some(task => !task.isCompleted);
+            if (activeTimersExist) {
+                 updateCountdowns();
+                 countdownInterval = setInterval(updateCountdowns, 1000);
+            }
+        }
+
+        // --- Event Handlers ---
+        function handleFormSubmit(e) {
+            e.preventDefault();
+            const taskId = editingTaskIdInput.value;
+            const taskName = taskNameInput.value.trim();
+            const taskDue = taskDueInput.value;
+            const taskPriority = taskPriorityInput.value;
+
+            if (!taskName || !taskDue) { alert('Please fill in task name and due date/time.'); return; }
+            const dueDateObj = new Date(taskDue);
+            if (isNaN(dueDateObj)) { alert('Invalid date/time format.'); return; }
+
+            if (taskId) {
+                // Editing existing task
+                const taskIndex = tasks.findIndex(t => t.id === taskId);
+                if (taskIndex > -1) {
+                    tasks[taskIndex] = { ...tasks[taskIndex], name: taskName, dueDate: taskDue, priority: taskPriority };
+                    console.log("Task updated:", tasks[taskIndex]);
+                } else { console.error("Task not found for editing:", taskId); }
+                cancelEditMode();
+            } else {
+                // Adding new task
+                if (tasks.length >= MAX_TASKS) { alert('Maximum number of tasks reached.'); return; }
+                const newTask = {
+                    id: Date.now().toString() + Math.random().toString(16).slice(2),
+                    name: taskName, dueDate: taskDue, priority: taskPriority, notes: [],
+                    isCompleted: false, progressPercent: 0, dateAdded: new Date().toISOString()
+                };
+                tasks.push(newTask);
+                console.log("Task added:", newTask);
+            }
+
+            saveTasks(); // Save will call updateGlobalProgress
+            renderTasks();
+            taskForm.reset();
+            taskPriorityInput.value = 'Medium';
+        }
+
+        function handleEditClick(event) {
+            const taskElement = event.target.closest('.task-item');
+            if (!taskElement) return;
+            const taskId = taskElement.dataset.taskId;
+            const task = tasks.find(t => t.id === taskId);
+            if (!task) { console.error("Task data not found for ID:", taskId); return; }
+
+            editingTaskIdInput.value = task.id;
+            taskNameInput.value = task.name;
+            try {
+                const dateForInput = new Date(task.dueDate);
+                 dateForInput.setMinutes(dateForInput.getMinutes() - dateForInput.getTimezoneOffset());
+                taskDueInput.value = dateForInput.toISOString().slice(0, 16);
+            } catch (e) {
+                 console.error("Error formatting due date for input:", e, task.dueDate);
+                 taskDueInput.value = '';
+            }
+            taskPriorityInput.value = task.priority;
+
+            addTaskButton.classList.add('hidden');
+            saveChangesButton.classList.remove('hidden');
+            cancelEditButton.classList.remove('hidden');
+            taskNameInput.focus();
+        }
+
+         function cancelEditMode() {
+            editingTaskIdInput.value = '';
+            taskForm.reset();
+            taskPriorityInput.value = 'Medium';
+            addTaskButton.classList.remove('hidden');
+            saveChangesButton.classList.add('hidden');
+            cancelEditButton.classList.add('hidden');
+            checkTaskLimit();
+         }
+
+        function handleDeleteClick(event) {
+            const taskElement = event.target.closest('.task-item');
+             if (!taskElement) return;
+            const taskId = taskElement.dataset.taskId;
+            if (taskId && confirm('Are you sure you want to delete this task?')) {
+                tasks = tasks.filter(task => task.id !== taskId);
+                saveTasks(); // Save will call updateGlobalProgress
+                renderTasks();
+            }
+        }
+
+        function handleCompleteToggle(event) {
+            const taskElement = event.target.closest('.task-item');
+             if (!taskElement) return;
+            const taskId = taskElement.dataset.taskId;
+            const taskIndex = tasks.findIndex(t => t.id === taskId);
+            if (taskIndex > -1) {
+                tasks[taskIndex].isCompleted = event.target.checked;
+                console.log(`Task ${taskId} completion toggled to: ${tasks[taskIndex].isCompleted}`);
+                // Update styles directly
+                taskElement.classList.toggle('completed', tasks[taskIndex].isCompleted);
+                // Update countdown text immediately
+                const countdownEl = taskElement.querySelector('.countdown-text');
+                if(countdownEl) {
+                    countdownEl.dataset.isCompleted = tasks[taskIndex].isCompleted;
+                    const { text, class: countdownClass } = formatTimeRemaining(tasks[taskIndex].dueDate, tasks[taskIndex].isCompleted);
+                    countdownEl.textContent = text;
+                    const classesToRemove = ['text-red-600', 'text-orange-600', 'text-gray-700', 'font-bold', 'font-semibold'];
+                    countdownEl.classList.remove(...classesToRemove);
+                    if(countdownClass) countdownEl.classList.add(...countdownClass.split(' '));
+                }
+                saveTasks(); // Save the change
+                updateGlobalProgress(); // Update global bar immediately
+                startCountdownUpdates(); // Check if interval needs starting/stopping
+            } else {
+                 console.error("Task not found for completion toggle:", taskId);
+            }
+        }
+
+        function handleProgressChange(event) {
+             const taskElement = event.target.closest('.task-item');
+              if (!taskElement) return;
+             const taskId = taskElement.dataset.taskId;
+             const taskIndex = tasks.findIndex(t => t.id === taskId);
+             if (taskIndex > -1) {
+                 const newProgress = parseInt(event.target.value, 10);
+                 tasks[taskIndex].progressPercent = newProgress;
+                 // Update the text display next to the slider immediately
+                 const progressValueDisplay = taskElement.querySelector('.task-progress-value');
+                 if (progressValueDisplay) {
+                     progressValueDisplay.textContent = `${newProgress}%`;
+                 }
+                 saveTasks(); // Save the change
+                 updateGlobalProgress(); // Update global bar immediately
+             } else {
+                  console.error("Task not found for progress change:", taskId);
+             }
+        }
+
+        function handleSortFilterChange() {
+            currentSortBy = sortBySelect.value;
+            currentSortOrder = sortOrderSelect.value;
+            currentFilterPriority = filterPrioritySelect.value;
+            currentFilterStatus = filterStatusSelect.value;
+            console.log("Sort/Filter changed:", {sortBy: currentSortBy, sortOrder: currentSortOrder, filterPriority: currentFilterPriority, filterStatus: currentFilterStatus});
+            renderTasks();
+        }
+
+        // --- Notes Modal Logic ---
+        function handleOpenNotesModal(event) {
+            const taskElement = event.target.closest('.task-item');
+             if (!taskElement) return;
+            currentNotesTaskId = taskElement.dataset.taskId;
+            const task = tasks.find(t => t.id === currentNotesTaskId);
+            if (!task) {
+                 console.error("Task data not found for notes modal:", currentNotesTaskId);
+                 return;
+            }
+
+            modalTaskName.textContent = `Notes for: ${task.name}`;
+            renderNotesInModal(task.notes || []);
+            modalNoteInput.value = '';
+            notesModal.style.display = 'block';
+            modalNoteInput.focus();
+        }
+
+        function renderNotesInModal(notesArray) {
+             modalNotesLog.innerHTML = '';
+             if (notesArray && notesArray.length > 0) {
+                const sortedNotes = [...notesArray].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+                sortedNotes.forEach(note => {
+                    const noteP = document.createElement('p');
+                    noteP.className = 'border-b border-gray-100 pb-1 mb-1 last:border-b-0 last:pb-0 last:mb-0';
+                    const timestampSpan = document.createElement('span');
+                    timestampSpan.className = 'note-timestamp';
+                    timestampSpan.textContent = `[${formatTimestamp(note.timestamp)}]`;
+                    noteP.appendChild(timestampSpan);
+                    noteP.appendChild(document.createTextNode(note.text));
+                    modalNotesLog.appendChild(noteP);
+                });
+            } else {
+                modalNotesLog.innerHTML = '<p class="text-gray-500 text-sm">No notes yet.</p>';
+            }
+        }
+
+
+        function closeModal() {
+            notesModal.style.display = 'none';
+            currentNotesTaskId = null;
+        }
+
+        function handleAddNote() {
+            const noteText = modalNoteInput.value.trim();
+            if (!noteText || !currentNotesTaskId) return;
+
+            const taskIndex = tasks.findIndex(t => t.id === currentNotesTaskId);
+            if (taskIndex > -1) {
+                const newNote = { timestamp: new Date().toISOString(), text: noteText };
+                if (!tasks[taskIndex].notes) tasks[taskIndex].notes = [];
+                tasks[taskIndex].notes.push(newNote);
+                saveTasks(); // Just save, no global progress update needed for notes
+                renderNotesInModal(tasks[taskIndex].notes);
+                modalNoteInput.value = '';
+                modalNoteInput.focus();
+            } else {
+                 console.error("Task not found for adding note:", currentNotesTaskId);
+            }
+        }
+
+
+        // --- Event Listeners ---
+        taskForm.addEventListener('submit', handleFormSubmit);
+        cancelEditButton.addEventListener('click', cancelEditMode);
+        // Sorting/Filtering listeners
+        sortBySelect.addEventListener('change', handleSortFilterChange);
+        sortOrderSelect.addEventListener('change', handleSortFilterChange);
+        filterPrioritySelect.addEventListener('change', handleSortFilterChange);
+        filterStatusSelect.addEventListener('change', handleSortFilterChange);
+        // Notes Modal listeners
+        modalCloseButton.addEventListener('click', closeModal);
+        modalAddNoteButton.addEventListener('click', handleAddNote);
+        // Close modal if clicking outside the content
+        window.addEventListener('click', (event) => {
+            if (event.target == notesModal) {
+                closeModal();
+            }
+        });
+        // Note: Event listeners for task-specific buttons/inputs are added in createTaskElement.
+
+
+        // --- Initial Load ---
+        loadTasks();
+        renderTasks();
+
+    </script>
+
+</body>
+</html>
